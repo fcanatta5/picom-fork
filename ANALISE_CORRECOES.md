@@ -49,3 +49,26 @@ Nesta continuação foram adicionados presets de animação diretamente ao runti
 - `geometry-fast`, `geometry-smooth`, `move-smooth`: variações de duração sobre o preset `geometry-change`.
 
 A configuração completa também foi expandida com regras específicas para `splash`, `toolbar`, `utility`, `dnd` e terminais (`Alacritty`, `kitty`, `WezTerm`, `foot`).
+
+## Revisão final do bundle corrigido
+
+Nesta revisão completa do bundle foram aplicadas correções adicionais focadas em robustez do parser de presets e prevenção de falhas silenciosas:
+
+1. **Validação estrita dos presets `hypr-*`**
+   - `duration`, `scale`, `distance` e `direction` agora são validados antes da compilação do script inline.
+   - Valores não numéricos, infinitos, NaN ou fora de faixa passam a falhar com erro claro em vez de cair silenciosamente no valor padrão.
+   - `direction` precisa ser string e continua restrito a `left`, `right`, `up` ou `down`.
+
+2. **Validação dos presets clássicos e wrappers adicionais**
+   - `appear`, `disappear`, `slide-*`, `fly-*`, `geometry-change`, `zoom-*`, `pop-*`, `geometry-fast`, `geometry-smooth` e `move-smooth` passaram a validar `duration`, `scale` e `direction` quando aplicável.
+   - A alocação do script agora acontece somente depois que as opções do preset são consideradas válidas, evitando vazamento de script em erro de configuração.
+
+3. **Registro de presets tipado**
+   - O registro `win_script_presets` deixou de depender de um `extern` com struct anônima e passou a usar `struct win_script_preset` declarada em `src/transition/preset.h`.
+   - Isso reduz risco de incompatibilidade de tipo entre unidades de compilação e deixa a ABI interna mais explícita.
+
+4. **Validação estrutural realizada**
+   - `git diff --check` sem erros.
+   - Verificação estrutural de pares `()`, `{}`, `[]` nos arquivos alterados e nas configurações completas.
+   - Verificação dos presets e triggers referenciados em `picom.full-animated.conf` e `picom.sample.full-animated.conf`.
+   - O ambiente local não possui Meson nem todos os headers de desenvolvimento necessários (`libconfig.h`, `uthash.h`, headers XCB adicionais/pixman), portanto a compilação completa não pôde ser executada dentro deste sandbox.

@@ -1,3 +1,39 @@
+diff --git a/HYPRLAND_ANIMATIONS_IMPLEMENTED.md b/HYPRLAND_ANIMATIONS_IMPLEMENTED.md
+new file mode 100644
+index 0000000..0202168
+--- /dev/null
++++ b/HYPRLAND_ANIMATIONS_IMPLEMENTED.md
+@@ -0,0 +1,30 @@
++# Hyprland-like animation bundle
++
++Este bundle implementa uma camada nova de presets `hypr-*` no parser de presets do Picom:
++
++- `hypr-open` / `hypr-popin`: abertura com pop-in, fade, blur e sombra sincronizados.
++- `hypr-close` / `hypr-popout`: fechamento com pop-out rápido e curva ease-in.
++- `hypr-fade-in` / `hypr-fade-out`: transições curtas de opacidade.
++- `hypr-workspace-in` / `hypr-workspace-out`: troca de workspace com slide curto, escala sutil e fade.
++- `hypr-geometry` / `hypr-move`: move/resize com curva spring visual e blend do frame salvo.
++
++A configuração `picom.full-animated.conf` já usa esses presets globalmente e também nas regras mais importantes por tipo de janela.
++
++## Instalação rápida
++
++```bash
++meson setup build -Dwith_docs=true -Ddbus=true -Dopengl=true -Dregex=true -Dunittest=false
++meson compile -C build
++sudo meson install -C build
++mkdir -p ~/.config/picom
++cp picom.full-animated.conf ~/.config/picom/picom.conf
++picom --config ~/.config/picom/picom.conf --log-level=info
++```
++
++## Ajustes principais
++
++- Para mais efeito de pop: reduza `scale` em `hypr-open`, por exemplo `0.80`.
++- Para animações mais discretas: aumente `scale` para `0.90`–`0.94`.
++- Para workspace mais perceptível: aumente `distance` de `0.16` para `0.22`–`0.30`.
++- Para workspace mais parecido com fade/slide curto do Hyprland: mantenha `distance` entre `0.12` e `0.18`.
++
 diff --git a/README.md b/README.md
 index 6c464b1..736d923 100644
 --- a/README.md
@@ -532,6 +568,756 @@ index 54b07f8..03c6e2f 100644
      duration = 0.14;
    }
    );
+diff --git a/picom.sample.full-animated.conf b/picom.sample.full-animated.conf
+new file mode 100644
+index 0000000..03c6e2f
+--- /dev/null
++++ b/picom.sample.full-animated.conf
+@@ -0,0 +1,744 @@
++# ============================================================================
++# picom.full-animated.conf
++# Configuração completa e comentada para este bundle/fork do picom.
++#
++# Sintaxe: libconfig. Cada atribuição ativa termina com ';'.
++# Tipos usados: booleano true/false, número inteiro, número decimal, string
++# entre aspas, lista [ ... ], e lista de grupos ( { ... }, { ... } ).
++#
++# Este arquivo usa `rules` como sistema moderno de regras por janela. Por isso,
++# as opções antigas de listas de exclusão e `wintypes` ficam documentadas, mas
++# comentadas: ativá-las junto com `rules` gera avisos e pode ser ignorado.
++# ============================================================================
++
++# ----------------------------------------------------------------------------
++# 1. Plugins, logs e controle externo
++# ----------------------------------------------------------------------------
++
++# plugins: string ou lista de strings com bibliotecas de plugin a carregar antes
++# dos backends. Deixe vazio se você não usa plugins externos.
++plugins = [];
++
++# dbus: habilita controle remoto por D-Bus. Útil para scripts que alteram
++# opções em tempo real; desative para uma sessão menor e mais fechada.
++dbus = false;
++
++# log-level: nível mínimo de log. Valores: "trace", "debug", "info", "warn",
++# "error". Use "debug"/"trace" só para diagnóstico.
++log-level = "warn";
++
++# log-file: caminho absoluto para gravar logs. Se comentado, logs vão para stderr.
++# log-file = "/tmp/picom.log";
++
++# write-pid-path: caminho absoluto onde o PID do processo será escrito.
++# write-pid-path = "/tmp/picom.pid";
++
++# ----------------------------------------------------------------------------
++# 2. Backend, apresentação e sincronização
++# ----------------------------------------------------------------------------
++
++# backend: motor de renderização. Valores: "xrender", "glx", "egl".
++# Use "glx"/"egl" para blur moderno, shaders e animações mais suaves.
++backend = "glx";
++
++# vsync: sincroniza a apresentação com o refresh do monitor para reduzir tearing.
++vsync = true;
++
++# dithered-present: usa maior precisão interna e dither na saída. Pode reduzir
++# banding em gradientes; só funciona com backend OpenGL e pode custar desempenho.
++dithered-present = false;
++
++# no-frame-pacing: quando true desativa o pacing interno de frames. Normalmente
++# deve ficar false; true é útil apenas para depuração de latência/renderização.
++no-frame-pacing = false;
++
++# xrender-sync-fence: espera renderização de outras janelas com X Sync fence.
++# Pode ajudar em drivers com explicit sync, especialmente NVIDIA.
++xrender-sync-fence = true;
++
++# use-damage: redesenha apenas regiões alteradas. Melhora desempenho; desative se
++# usar max-brightness abaixo de 1.0 ou se encontrar glitches de redraw.
++use-damage = true;
++
++# force-win-blend: força blending em todas as janelas. Necessário quando um
++# window-shader-fg pode transformar pixels opacos em transparentes.
++force-win-blend = false;
++
++# glx-no-stencil e glx-no-rebind-pixmap: opções antigas aceitas pelo parser, mas
++# depreciadas; mantenha comentadas salvo se você sabe que precisa delas.
++# glx-no-stencil = false;
++# glx-no-rebind-pixmap = false;
++
++# ----------------------------------------------------------------------------
++# 3. Detecção de foco, fullscreen, agrupamento e unredirect
++# ----------------------------------------------------------------------------
++
++# detect-rounded-corners: tenta detectar cantos arredondados nativos para não
++# tratar a janela como shaped window. Não é o mesmo que corner-radius.
++detect-rounded-corners = true;
++
++# detect-client-opacity: lê _NET_WM_WINDOW_OPACITY no client, útil quando o WM não
++# copia essa propriedade para a frame window.
++detect-client-opacity = true;
++
++# use-ewmh-active-win: usa _NET_ACTIVE_WINDOW para foco em vez de FocusIn/FocusOut.
++# Pode ser melhor se o WM implementa EWMH corretamente.
++use-ewmh-active-win = false;
++
++# detect-transient: janelas ligadas por WM_TRANSIENT_FOR compartilham foco.
++detect-transient = true;
++
++# detect-client-leader: janelas do mesmo WM_CLIENT_LEADER compartilham foco.
++detect-client-leader = true;
++
++# no-ewmh-fullscreen: ignora estado EWMH de fullscreen e detecta só por geometria.
++no-ewmh-fullscreen = false;
++
++# unredir-if-possible: desativa composição quando há janela fullscreen opaca para
++# reduzir latência. Pode causar flicker ao alternar fullscreen.
++unredir-if-possible = false;
++
++# unredir-if-possible-delay: atraso em ms antes do unredirect.
++unredir-if-possible-delay = 0;
++
++# mark-wmwin-focused: trata janelas de WM como focadas. Antigo; prefira rules.
++# mark-wmwin-focused = true;
++
++# mark-ovredir-focused: trata override-redirect como focadas. Antigo; prefira rules.
++# mark-ovredir-focused = true;
++
++# ----------------------------------------------------------------------------
++# 4. Sombras
++# ----------------------------------------------------------------------------
++
++# shadow: habilita sombras globais. Pode ser sobrescrito em rules.
++shadow = true;
++
++# shadow-radius: raio de blur da sombra em pixels.
++shadow-radius = 35;
++
++# shadow-opacity: opacidade global da sombra, de 0.0 a 1.0.
++shadow-opacity = 0.35;
++
++# shadow-offset-x / shadow-offset-y: deslocamento da sombra em pixels.
++shadow-offset-x = -28;
++shadow-offset-y = -26;
++
++# shadow-color: cor hexadecimal da sombra em #RRGGBB. Substitui shadow-red/green/blue.
++shadow-color = "#00020b";
++
++# shadow-red / shadow-green / shadow-blue: componentes 0.0-1.0, alternativa a
++# shadow-color. Mantidos comentados para evitar conflito visual.
++# shadow-red = 0.0;
++# shadow-green = 0.0;
++# shadow-blue = 0.0;
++
++# shadow-ignore-shaped: não sombreia janelas shaped. Antigo; prefira rules.
++# shadow-ignore-shaped = false;
++
++# crop-shadow-to-monitor: recorta a sombra ao monitor da janela.
++crop-shadow-to-monitor = false;
++
++# xinerama-shadow-crop: nome antigo depreciado de crop-shadow-to-monitor.
++# xinerama-shadow-crop = false;
++
++# shadow-exclude-reg: depreciado e rejeitado; use clip-shadow-above/rules.
++# shadow-exclude-reg = "";
++
++# ----------------------------------------------------------------------------
++# 5. Opacidade, dim, bordas e cantos
++# ----------------------------------------------------------------------------
++
++# active-opacity: opacidade da janela focada. 1.0 desativa alteração.
++# active-opacity = 1.0;
++
++# inactive-opacity: opacidade da janela sem foco. 1.0 desativa alteração.
++# inactive-opacity = 1.0;
++
++# inactive-opacity-override: força inactive-opacity mesmo quando a janela define
++# sua própria opacidade.
++# inactive-opacity-override = false;
++
++# frame-opacity: opacidade de titlebar/bordas da janela, 0.1-1.0.
++frame-opacity = 0.95;
++
++# frame-opacity-for-same-colors: aplica frame-opacity só quando frame e conteúdo
++# têm cores iguais/similares.
++frame-opacity-for-same-colors = true;
++
++# frame-opacity-for-same-colors-tolerance: tolerância para comparar cores.
++frame-opacity-for-same-colors-tolerance = 0.01;
++
++# frame-opacity-for-same-colors-multiplier: multiplicador usado ao ajustar frame.
++frame-opacity-for-same-colors-multiplier = 1;
++
++# inactive-dim: escurecimento de janela sem foco, 0.0-1.0.
++# inactive-dim = 0.0;
++
++# inactive-dim-fixed: true usa dim fixo; false ajusta conforme opacidade.
++# inactive-dim-fixed = false;
++
++# max-brightness: limita brilho médio de janelas; 1.0 desativa. Requer
++# use-damage = false quando abaixo de 1.0.
++max-brightness = 1.0;
++
++# corner-radius: raio global de cantos arredondados em pixels.
++corner-radius = 13;
++
++# rounded-corners-exclude: documentado abaixo na seção de regras antigas.
++
++# inner-border-width: largura da borda interna desenhada pelo compositor.
++inner-border-width = 1;
++
++# inner-border-brightness: brilho da borda interna.
++inner-border-brightness = 1.0;
++
++# transparent-clipping: janelas transparentes recortam as janelas abaixo em vez de
++# misturar por cima. Pode ser útil com pseudo-transparência.
++transparent-clipping = false;
++
++# ----------------------------------------------------------------------------
++# 6. Fade legado
++# ----------------------------------------------------------------------------
++# O sistema moderno de `animations` abaixo substitui o fade legado para triggers
++# configurados. Ainda assim, estas opções são suportadas e usadas quando não há
++# script de animação para o trigger correspondente.
++
++# fading: habilita fade legado.
++fading = true;
++
++# fade-in-step / fade-out-step: incremento por passo, 0.01-1.0.
++fade-in-step = 0.03;
++fade-out-step = 0.03;
++
++# fade-delta: intervalo entre passos do fade em ms.
++fade-delta = 10;
++
++# no-fading-openclose: não aplica fade legado ao abrir/fechar.
++no-fading-openclose = false;
++
++# no-fading-destroyed-argb: workaround para alguns WMs com ARGB destruída.
++no-fading-destroyed-argb = false;
++
++# ----------------------------------------------------------------------------
++# 7. Blur
++# ----------------------------------------------------------------------------
++
++# blur-method: "none", "box", "kernel", "gaussian", "dual_kawase".
++# dual_kawase costuma ser melhor visual/desempenho em OpenGL.
++blur-method = "dual_kawase";
++
++# blur-background: aplica blur em janelas transparentes/ARGB. Pode ser sobrescrito
++# em rules.
++blur-background = true;
++
++# blur-background-frame: aplica blur atrás da frame quando a frame não é opaca.
++blur-background-frame = true;
++
++# blur-background-fixed: true mantém blur com força fixa durante fade/animação;
++# false anima blur-opacity junto com a opacidade.
++blur-background-fixed = false;
++
++# blur-strength: força do dual_kawase.
++blur-strength = 5;
++
++# blur-size: tamanho/raio para métodos box/kernel/gaussian.
++blur-size = 12;
++
++# blur-deviation: desvio da gaussiana quando blur-method = "gaussian".
++blur-deviation = 5.0;
++
++# blur-kern: kernel manual para blur-method = "kernel". Exemplos: "3x3box",
++# "5x5box" ou matriz como "5,5,1,1,...".
++# blur-kern = "3x3box";
++
++# Grupo alternativo também suportado. Não ative junto com as opções acima salvo
++# se quiser sobrescrevê-las explicitamente.
++# blur = {
++#   method = "dual_kawase";  # mesmo domínio de blur-method
++#   size = 12;               # mesmo que blur-size
++#   deviation = 5.0;         # mesmo que blur-deviation
++#   strength = 5;            # mesmo que blur-strength
++#   kernel = "3x3box";       # mesmo que blur-kern
++# };
++
++# ----------------------------------------------------------------------------
++# 8. Shaders
++# ----------------------------------------------------------------------------
++
++# window-shader-fg: shader GLSL para renderizar conteúdo de janela. Pode ser uma
++# string simples ou grupo com defines. Caminhos relativos são buscados como shader.
++# window-shader-fg = "default";
++# window-shader-fg = {
++#   path = "meu-shader.frag";
++#   defines = {
++#     EXEMPLO = "1";
++#   };
++# };
++
++# root-pixmap-shader: shader GLSL aplicado ao pixmap raiz/fundo.
++# root-pixmap-shader = "meu-root-shader.frag";
++
++# ----------------------------------------------------------------------------
++# 9. Animações globais
++# ----------------------------------------------------------------------------
++# Triggers suportados:
++#   open, close, show, hide,
++#   increase-opacity, decrease-opacity,
++#   workspace-in, workspace-in-inverse,
++#   workspace-out, workspace-out-inverse,
++#   geometry, size, position, color.
++#
++# `geometry` é alias para `size` + `position` neste bundle corrigido.
++# Variáveis de saída suportadas em scripts:
++#   offset-x, offset-y, shadow-offset-x, shadow-offset-y,
++#   opacity, blur-opacity, shadow-opacity,
++#   shadow-red, shadow-green, shadow-blue,
++#   scale-x, scale-y, shadow-scale-x, shadow-scale-y,
++#   crop-x, crop-y, crop-width, crop-height, saved-image-blend.
++# Contexto disponível em expressões:
++#   window-x, window-y, window-width, window-height,
++#   window-x-before, window-y-before, window-width-before, window-height-before,
++#   window-monitor-x, window-monitor-y, window-monitor-width, window-monitor-height,
++#   window-raw-opacity-before, window-raw-opacity,
++#   window-blur-opacity-before, window-blur-opacity,
++#   window-shadow-red/green/blue e window-shadow-red/green/blue-before.
++#
++# Presets embutidos suportados:
++#   appear(scale, duration), disappear(scale, duration),
++#   zoom-in(scale, duration), zoom-out(scale, duration),
++#   pop-in(scale, duration), pop-out(scale, duration),
++#   slide-in(direction, duration), slide-out(direction, duration),
++#   slide-up-in/out, slide-down-in/out, slide-left-in/out, slide-right-in/out,
++#   fly-in(direction, duration), fly-out(direction, duration),
++#   fly-up-in/out, fly-down-in/out, fly-left-in/out, fly-right-in/out,
++#   geometry-change(duration), geometry-fast(duration),
++#   geometry-smooth(duration), move-smooth(duration),
++#   hypr-open(scale, duration), hypr-close(scale, duration),
++#   hypr-fade-in(duration), hypr-fade-out(duration),
++#   hypr-workspace-in/out(direction, distance, scale, duration),
++#   hypr-geometry(duration).
++# directions para slide/fly/hypr-workspace: "up", "down", "left", "right".
++
++animations = (
++{
++  # Abertura estilo Hyprland: pop-in com overshoot leve, fade, blur e sombra sincronizados.
++  triggers = ["open", "show"];
++  suppressions = ["close", "hide"];
++  preset = "hypr-open";
++  duration = 0.22;
++  scale = 0.84;
++},
++{
++  # Fechamento estilo Hyprland: pop-out rápido com curva ease-in.
++  triggers = ["close", "hide"];
++  suppressions = ["open", "show"];
++  preset = "hypr-close";
++  duration = 0.16;
++  scale = 0.82;
++},
++{
++  # Transição de opacidade para regras que mudam foco/opacidade.
++  triggers = ["increase-opacity"];
++  preset = "hypr-fade-in";
++  duration = 0.13;
++},
++{
++  # Transição inversa de opacidade.
++  triggers = ["decrease-opacity"];
++  preset = "hypr-fade-out";
++  duration = 0.12;
++},
++{
++  # Workspace normal: janela sai para a esquerda com deslocamento curto e escala sutil.
++  triggers = ["workspace-out"];
++  preset = "hypr-workspace-out";
++  direction = "left";
++  duration = 0.24;
++  distance = 0.16;
++  scale = 0.985;
++},
++{
++  # Workspace inverso: janela sai para a direita.
++  triggers = ["workspace-out-inverse"];
++  preset = "hypr-workspace-out";
++  direction = "right";
++  duration = 0.24;
++  distance = 0.16;
++  scale = 0.985;
++},
++{
++  # Workspace normal: janela entra vindo da direita.
++  triggers = ["workspace-in"];
++  preset = "hypr-workspace-in";
++  direction = "right";
++  duration = 0.26;
++  distance = 0.16;
++  scale = 0.985;
++},
++{
++  # Workspace inverso: janela entra vindo da esquerda.
++  triggers = ["workspace-in-inverse"];
++  preset = "hypr-workspace-in";
++  direction = "left";
++  duration = 0.26;
++  distance = 0.16;
++  scale = 0.985;
++},
++{
++  # Move/resize estilo Hyprland: spring visual, blend do frame salvo e offset suave.
++  triggers = ["geometry"];
++  preset = "hypr-geometry";
++  duration = 0.20;
++},
++{
++  # Anima mudança de cor de sombra sem interferir nas curvas de geometria.
++  triggers = ["color"];
++  shadow-red = {
++    curve = "linear";
++    duration = 0.16;
++    start = "window-shadow-red-before";
++    end = "window-shadow-red";
++  };
++  shadow-green = {
++    curve = "linear";
++    duration = 0.16;
++    start = "window-shadow-green-before";
++    end = "window-shadow-green";
++  };
++  shadow-blue = {
++    curve = "linear";
++    duration = 0.16;
++    start = "window-shadow-blue-before";
++    end = "window-shadow-blue";
++  };
++}
++);
++# ----------------------------------------------------------------------------
++# 10. Regras modernas por janela
++# ----------------------------------------------------------------------------
++# Cada regra tem:
++#   match: condição; se omitida, casa tudo.
++#   Opções booleanas por janela: fade, paint, shadow, full-shadow, invert-color,
++#     blur-background, clip-shadow-above, transparent-clipping.
++#   Números por janela: opacity, blur-opacity, dim, corner-radius.
++#   Strings/grupos: shadow-color, shader, unredir, animations.
++# unredir aceita: "when-possible-else-terminate", "when-possible",
++#   "terminate", "passive", "forced".
++
++rules = (
++{
++  # Tooltips: leves, sem sombra pesada, com fade rápido.
++  match = "window_type = 'tooltip'";
++  opacity = 0.92;
++  shadow = true;
++  full-shadow = false;
++  blur-background = true;
++  corner-radius = 8;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "hypr-open";
++    duration = 0.10;
++    scale = 0.98;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "hypr-close";
++    duration = 0.08;
++    scale = 0.98;
++  }
++  );
++},
++{
++  # Menus/dropdowns: dobra verticalmente a partir do topo.
++  match = "window_type = 'dropdown_menu' || window_type = 'popup_menu' || window_type = 'menu' || window_type = 'combo'";
++  opacity = 0.96;
++  shadow = true;
++  blur-background = true;
++  corner-radius = 10;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    opacity = {
++      curve = "linear";
++      duration = 0.11;
++      start = "window-raw-opacity-before";
++      end = "window-raw-opacity";
++    };
++    blur-opacity = "opacity";
++    shadow-opacity = "opacity";
++    scale-y = {
++      curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
++      duration = 0.13;
++      start = 0.72;
++      end = 1.0;
++    };
++    scale-x = 1.0;
++    shadow-scale-y = "scale-y";
++  },
++  {
++    triggers = ["close", "hide"];
++    opacity = {
++      curve = "linear";
++      duration = 0.08;
++      start = "window-raw-opacity-before";
++      end = "window-raw-opacity";
++    };
++    blur-opacity = 0.0;
++    shadow-opacity = "opacity";
++    scale-y = {
++      curve = "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
++      duration = 0.09;
++      start = 1.0;
++      end = 0.80;
++    };
++    scale-x = 1.0;
++    shadow-scale-y = "scale-y";
++  }
++  );
++},
++{
++  # Diálogos/transient: pop mais marcado, centralizado.
++  match = "window_type = 'dialog' || WM_TRANSIENT_FOR@";
++  shadow = true;
++  blur-background = true;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "hypr-open";
++    duration = 0.16;
++    scale = 0.90;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "hypr-close";
++    duration = 0.12;
++    scale = 0.92;
++  }
++  );
++},
++{
++  # Notificações: deslizam da direita e saem para a direita.
++  match = "window_type = 'notification' || class_g ?= 'Notify-osd' || name = 'Notification'";
++  shadow = true;
++  blur-background = true;
++  opacity = 0.96;
++  corner-radius = 12;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    opacity = {
++      curve = "linear";
++      duration = 0.14;
++      start = 0.0;
++      end = "window-raw-opacity";
++    };
++    blur-opacity = "opacity";
++    shadow-opacity = "opacity";
++    offset-x = {
++      curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
++      duration = 0.18;
++      start = "window-monitor-x + window-monitor-width - window-x";
++      end = 0;
++    };
++    shadow-offset-x = "offset-x";
++  },
++  {
++    triggers = ["close", "hide"];
++    opacity = {
++      curve = "linear";
++      duration = 0.12;
++      start = "window-raw-opacity-before";
++      end = 0.0;
++    };
++    blur-opacity = 0.0;
++    shadow-opacity = "opacity";
++    offset-x = {
++      curve = "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
++      duration = 0.14;
++      start = 0;
++      end = "window-monitor-x + window-monitor-width - window-x";
++    };
++    shadow-offset-x = "offset-x";
++  }
++  );
++},
++{
++  # Splash screens: pop forte, curto e centralizado.
++  match = "window_type = 'splash'";
++  shadow = true;
++  blur-background = true;
++  corner-radius = 18;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "hypr-popin";
++    duration = 0.18;
++    scale = 0.78;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "hypr-popout";
++    duration = 0.12;
++    scale = 0.84;
++  }
++  );
++},
++{
++  # Toolbars/utilities: entram de cima e saem para cima.
++  match = "window_type = 'toolbar' || window_type = 'utility'";
++  shadow = true;
++  blur-background = true;
++  corner-radius = 11;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "slide-down-in";
++    duration = 0.15;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "slide-up-out";
++    duration = 0.11;
++  }
++  );
++},
++{
++  # Drag-and-drop: ícone flutua de baixo e sai para cima, sem sombra pesada.
++  match = "window_type = 'dnd'";
++  opacity = 0.86;
++  shadow = false;
++  blur-background = false;
++  corner-radius = 10;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "fly-up-in";
++    duration = 0.16;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "fly-up-out";
++    duration = 0.12;
++  }
++  );
++},
++{
++  # Terminais/GPU-heavy: animações curtas para não atrasar foco e redraw.
++  match = "class_g ?= 'Alacritty' || class_g ?= 'kitty' || class_g ?= 'WezTerm' || class_g ?= 'foot'";
++  animations = (
++  {
++    triggers = ["open", "show"];
++    preset = "hypr-open";
++    duration = 0.13;
++    scale = 0.92;
++  },
++  {
++    triggers = ["close", "hide"];
++    preset = "hypr-close";
++    duration = 0.10;
++    scale = 0.94;
++  },
++  {
++    triggers = ["geometry"];
++    preset = "hypr-geometry";
++    duration = 0.14;
++  }
++  );
++},
++{
++  # Docks/desktops: sem blur/sombra/cantos e sem animação visual pesada.
++  match = "window_type = 'dock' || window_type = 'desktop'";
++  shadow = false;
++  blur-background = false;
++  corner-radius = 0;
++  paint = true;
++},
++{
++  # Fullscreen/lockscreen: sem sombra, sem cantos, fade simples para evitar glitch.
++  match = "class_g *= 'i3lock' || "
++          "_NET_WM_STATE@[1] = '_NET_WM_STATE_FULLSCREEN' || "
++          "_NET_WM_STATE@[2] = '_NET_WM_STATE_FULLSCREEN' || "
++          "_NET_WM_STATE@[3] = '_NET_WM_STATE_FULLSCREEN' || "
++          "_NET_WM_STATE@[4] = '_NET_WM_STATE_FULLSCREEN'";
++  shadow = false;
++  blur-background = false;
++  corner-radius = 0;
++  animations = (
++  {
++    triggers = ["open", "show"];
++    opacity = {
++      curve = "linear";
++      duration = 0.10;
++      start = "window-raw-opacity-before";
++      end = "window-raw-opacity";
++    };
++    blur-opacity = 0.0;
++    shadow-opacity = 0.0;
++  },
++  {
++    triggers = ["close", "hide"];
++    opacity = {
++      curve = "linear";
++      duration = 0.10;
++      start = "window-raw-opacity-before";
++      end = "window-raw-opacity";
++    };
++    blur-opacity = 0.0;
++    shadow-opacity = 0.0;
++  }
++  );
++},
++{
++  # Janelas sem decoração GTK/CSD costumam já ter sombras próprias.
++  match = "_GTK_FRAME_EXTENTS@";
++  shadow = false;
++}
++);
++
++# ----------------------------------------------------------------------------
++# 11. Regras antigas suportadas, mas substituídas por `rules`
++# ----------------------------------------------------------------------------
++# Formato geral: lista de condições C2. Deixe comentadas se `rules` estiver ativo.
++# transparent-clipping-exclude = [];
++# shadow-exclude = [];
++# clip-shadow-above = [];
++# fade-exclude = [];
++# focus-exclude = [];
++# invert-color-include = [];
++# blur-background-exclude = [];
++# unredir-if-possible-exclude = [];
++# rounded-corners-exclude = [];
++#
++# corner-radius-rules: cada string usa prefixo numérico, ex. "12:class_g = 'Alacritty'".
++# corner-radius-rules = [];
++#
++# opacity-rule: prefixo 0-100, ex. "90:class_g = 'kitty'".
++# opacity-rule = [];
++#
++# window-shader-fg-rule: prefixo shader, ex. "shader.frag:class_g = 'mpv'".
++# window-shader-fg-rule = [];
++
++# ----------------------------------------------------------------------------
++# 12. wintypes antigo suportado, mas comentado porque `rules` está ativo
++# ----------------------------------------------------------------------------
++# Cada tipo aceita: shadow, fade, focus, opacity, blur-background, full-shadow,
++# redir-ignore, clip-shadow-above.
++# Tipos suportados: unknown, desktop, dock, toolbar, menu, utility, splash,
++# dialog, normal, dropdown_menu, popup_menu, tooltip, notification, combo, dnd.
++#
++# wintypes:
++# {
++#   tooltip = { shadow = true; fade = true; focus = true; opacity = 0.92; blur-background = true; full-shadow = false; redir-ignore = false; clip-shadow-above = false; };
++#   dock = { shadow = false; fade = false; focus = true; opacity = 1.0; blur-background = false; full-shadow = false; redir-ignore = false; clip-shadow-above = false; };
++#   desktop = { shadow = false; fade = false; focus = true; opacity = 1.0; blur-background = false; full-shadow = false; redir-ignore = false; clip-shadow-above = false; };
++# };
++
++# ----------------------------------------------------------------------------
++# 13. Opções aceitas mas depreciadas
++# ----------------------------------------------------------------------------
++# refresh-rate: depreciado; não use.
++# refresh-rate = 0;
++# resize-damage: depreciado; não use.
++# resize-damage = 0;
 diff --git a/src/transition/preset.c b/src/transition/preset.c
 index 8b5cadd..24acb77 100644
 --- a/src/transition/preset.c

@@ -14,10 +14,6 @@
 #include "utils/str.h"
 #include "wm/win.h"
 
-extern struct {
-	const char *name;
-	bool (*func)(struct win_script *output, config_setting_t *setting);
-} win_script_presets[];
 
 static bool compile_inline_win_script(struct win_script *output, const char *script_text) {
 	config_t cfg;
@@ -58,17 +54,47 @@ static bool compile_inline_win_script(struct win_script *output, const char *scr
 	return true;
 }
 
-static double preset_float(config_setting_t *setting, const char *name, double def) {
+static bool preset_lookup_float(config_setting_t *setting, const char *name,
+                                double def, double min, double max,
+                                double *out) {
+	if (config_setting_lookup(setting, name) == NULL) {
+		*out = def;
+		return true;
+	}
+
 	double value = def;
-	config_setting_lookup_float(setting, name, &value);
-	return value;
+	if (!config_setting_lookup_float(setting, name, &value)) {
+		log_error("Invalid value for preset option \"%s\" at line %d. "
+		          "It must be a number.",
+		          name, config_setting_source_line(setting));
+		return false;
+	}
+	if (safe_isnan(value) || safe_isinf(value) || value < min || value > max) {
+		log_error("Invalid value %.17g for preset option \"%s\" at line %d. "
+		          "Expected a finite number in the range [%.17g, %.17g].",
+		          value, name, config_setting_source_line(setting), min, max);
+		return false;
+	}
+	*out = value;
+	return true;
 }
 
-static const char *preset_string(config_setting_t *setting, const char *name,
-                                 const char *def) {
+static bool preset_lookup_string(config_setting_t *setting, const char *name,
+                                 const char *def, const char **out) {
+	if (config_setting_lookup(setting, name) == NULL) {
+		*out = def;
+		return true;
+	}
+
 	const char *value = def;
-	config_setting_lookup_string(setting, name, &value);
-	return value;
+	if (!config_setting_lookup_string(setting, name, &value)) {
+		log_error("Invalid value for preset option \"%s\" at line %d. "
+		          "It must be a string.",
+		          name, config_setting_source_line(setting));
+		return false;
+	}
+	*out = value;
+	return true;
 }
 
 static bool hypr_direction_vector(const char *direction, double *x, double *y) {
@@ -101,8 +127,14 @@ static bool hypr_direction_vector(const char *direction, double *x, double *y) {
 static bool win_script_preset__hypr_scale(struct win_script *output,
                                           config_setting_t *setting,
                                           bool opening) {
-	const double duration = preset_float(setting, "duration", opening ? 0.22 : 0.16);
-	const double scale = preset_float(setting, "scale", opening ? 0.84 : 0.82);
+	double duration = 0.0;
+	double scale = 0.0;
+	if (!preset_lookup_float(setting, "duration", opening ? 0.22 : 0.16, 0.001,
+	                         60.0, &duration) ||
+	    !preset_lookup_float(setting, "scale", opening ? 0.84 : 0.82, 0.05, 2.0,
+	                         &scale)) {
+		return false;
+	}
 	const char *curve = opening ? "cubic-bezier(0.05, 0.90, 0.10, 1.05)"
 	                            : "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
 
@@ -157,7 +189,10 @@ static bool win_script_preset__hypr_close(struct win_script *output,
 static bool win_script_preset__hypr_fade(struct win_script *output,
                                          config_setting_t *setting,
                                          bool fade_in) {
-	const double duration = preset_float(setting, "duration", 0.13);
+	double duration = 0.0;
+	if (!preset_lookup_float(setting, "duration", 0.13, 0.001, 60.0, &duration)) {
+		return false;
+	}
 	const char *curve = fade_in ? "cubic-bezier(0.05, 0.90, 0.10, 1.00)"
 	                            : "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
 	char *script = NULL;
@@ -185,7 +220,10 @@ static bool win_script_preset__hypr_fade_out(struct win_script *output,
 
 static bool win_script_preset__hypr_geometry(struct win_script *output,
                                              config_setting_t *setting) {
-	const double duration = preset_float(setting, "duration", 0.20);
+	double duration = 0.0;
+	if (!preset_lookup_float(setting, "duration", 0.20, 0.001, 60.0, &duration)) {
+		return false;
+	}
 	const char *curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
 	char *script = NULL;
 	casprintf(&script,
@@ -212,10 +250,17 @@ static bool win_script_preset__hypr_geometry(struct win_script *output,
 static bool win_script_preset__hypr_workspace(struct win_script *output,
                                               config_setting_t *setting,
                                               bool entering) {
-	const double duration = preset_float(setting, "duration", 0.24);
-	const double distance = preset_float(setting, "distance", 0.16);
-	const double scale = preset_float(setting, "scale", entering ? 0.985 : 0.985);
-	const char *direction = preset_string(setting, "direction", entering ? "right" : "left");
+	double duration = 0.0;
+	double distance = 0.0;
+	double scale = 0.0;
+	const char *direction = NULL;
+	if (!preset_lookup_float(setting, "duration", 0.24, 0.001, 60.0, &duration) ||
+	    !preset_lookup_float(setting, "distance", 0.16, 0.0, 2.0, &distance) ||
+	    !preset_lookup_float(setting, "scale", 0.985, 0.05, 2.0, &scale) ||
+	    !preset_lookup_string(setting, "direction", entering ? "right" : "left",
+	                          &direction)) {
+		return false;
+	}
 	double dx = 0.0, dy = 0.0;
 	if (!hypr_direction_vector(direction, &dx, &dy)) {
 		return false;

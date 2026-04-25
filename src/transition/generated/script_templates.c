@@ -4,10 +4,54 @@
 
 #include <libconfig.h>
 #include "../curve.h"
+#include "../preset.h"
 #include "../script.h"
 #include "../script_internal.h"
 #include "config.h"
 #include "utils/misc.h"
+
+static bool win_script_preset_lookup_float(config_setting_t *setting, const char *name,
+                                           double def, double min, double max,
+                                           double *out) {
+	if (config_setting_lookup(setting, name) == NULL) {
+		*out = def;
+		return true;
+	}
+
+	double value = def;
+	if (!config_setting_lookup_float(setting, name, &value)) {
+		log_error("Invalid value for preset option \"%s\" at line %d. "
+		          "It must be a number.",
+		          name, config_setting_source_line(setting));
+		return false;
+	}
+	if (safe_isnan(value) || safe_isinf(value) || value < min || value > max) {
+		log_error("Invalid value %.17g for preset option \"%s\" at line %d. "
+		          "Expected a finite number in the range [%.17g, %.17g].",
+		          value, name, config_setting_source_line(setting), min, max);
+		return false;
+	}
+	*out = value;
+	return true;
+}
+
+static bool win_script_preset_lookup_string(config_setting_t *setting, const char *name,
+                                            const char *def, const char **out) {
+	if (config_setting_lookup(setting, name) == NULL) {
+		*out = def;
+		return true;
+	}
+
+	const char *value = def;
+	if (!config_setting_lookup_string(setting, name, &value)) {
+		log_error("Invalid value for preset option \"%s\" at line %d. "
+		          "It must be a string.",
+		          name, config_setting_source_line(setting));
+		return false;
+	}
+	*out = value;
+	return true;
+}
 static struct script *script_template__disappear(int *output_slots) {
 	static const struct instruction instrs[] = {
 	    {.type = INST_BRANCH_ONCE, .rel = 59},
@@ -218,15 +262,19 @@ static struct script *script_template__disappear(int *output_slots) {
 
 static bool
 win_script_preset__disappear(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__disappear(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
 	double knob_scale = 0x1.e666666666666p-1;
-	config_setting_lookup_float(setting, "scale", &knob_scale);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration) ||
+	    !win_script_preset_lookup_float(setting, "scale", knob_scale, 0.05, 2.0,
+	                                    &knob_scale)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = knob_scale},
 	};
+	output->script = script_template__disappear(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -437,15 +485,19 @@ static struct script *script_template__appear(int *output_slots) {
 }
 
 static bool win_script_preset__appear(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__appear(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
 	double knob_scale = 0x1.e666666666666p-1;
-	config_setting_lookup_float(setting, "scale", &knob_scale);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration) ||
+	    !win_script_preset_lookup_float(setting, "scale", knob_scale, 0.05, 2.0,
+	                                    &knob_scale)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = knob_scale},
 	};
+	output->script = script_template__appear(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -667,11 +719,16 @@ static struct script *script_template__slide_out(int *output_slots) {
 
 static bool
 win_script_preset__slide_out(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__slide_out(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	const char *knob_direction = "left";
-	config_setting_lookup_string(setting, "direction", &knob_direction);
+	if (!win_script_preset_lookup_string(setting, "direction", knob_direction,
+	                                     &knob_direction)) {
+		return false;
+	}
 	double placeholder1_direction;
 	double placeholder2_direction;
 	double placeholder3_direction;
@@ -697,10 +754,9 @@ win_script_preset__slide_out(struct win_script *output, config_setting_t *settin
 		          config_setting_source_line(
 		              config_setting_get_member(setting, "direction")));
 		log_error("    Valid ones are: \"up\", \"down\", \"left\", \"right\"");
-		script_free(output->script);
-		output->script = NULL;
 		return false;
 	}
+	output->script = script_template__slide_out(output->output_indices);
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1_direction},
@@ -870,11 +926,16 @@ static struct script *script_template__slide_in(int *output_slots) {
 }
 
 static bool win_script_preset__slide_in(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__slide_in(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	const char *knob_direction = "left";
-	config_setting_lookup_string(setting, "direction", &knob_direction);
+	if (!win_script_preset_lookup_string(setting, "direction", knob_direction,
+	                                     &knob_direction)) {
+		return false;
+	}
 	double placeholder1_direction;
 	double placeholder2_direction;
 	double placeholder3_direction;
@@ -900,10 +961,9 @@ static bool win_script_preset__slide_in(struct win_script *output, config_settin
 		          config_setting_source_line(
 		              config_setting_get_member(setting, "direction")));
 		log_error("    Valid ones are: \"up\", \"down\", \"left\", \"right\"");
-		script_free(output->script);
-		output->script = NULL;
 		return false;
 	}
+	output->script = script_template__slide_in(output->output_indices);
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1_direction},
@@ -1106,11 +1166,16 @@ static struct script *script_template__fly_out(int *output_slots) {
 }
 
 static bool win_script_preset__fly_out(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__fly_out(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	const char *knob_direction = "up";
-	config_setting_lookup_string(setting, "direction", &knob_direction);
+	if (!win_script_preset_lookup_string(setting, "direction", knob_direction,
+	                                     &knob_direction)) {
+		return false;
+	}
 	double placeholder1_direction;
 	double placeholder2_direction;
 	double placeholder3_direction;
@@ -1146,10 +1211,9 @@ static bool win_script_preset__fly_out(struct win_script *output, config_setting
 		          config_setting_source_line(
 		              config_setting_get_member(setting, "direction")));
 		log_error("    Valid ones are: \"up\", \"down\", \"left\", \"right\"");
-		script_free(output->script);
-		output->script = NULL;
 		return false;
 	}
+	output->script = script_template__fly_out(output->output_indices);
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1_direction},
@@ -1297,11 +1361,16 @@ static struct script *script_template__fly_in(int *output_slots) {
 }
 
 static bool win_script_preset__fly_in(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__fly_in(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-3;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	const char *knob_direction = "up";
-	config_setting_lookup_string(setting, "direction", &knob_direction);
+	if (!win_script_preset_lookup_string(setting, "direction", knob_direction,
+	                                     &knob_direction)) {
+		return false;
+	}
 	double placeholder1_direction;
 	double placeholder2_direction;
 	double placeholder3_direction;
@@ -1337,10 +1406,9 @@ static bool win_script_preset__fly_in(struct win_script *output, config_setting_
 		          config_setting_source_line(
 		              config_setting_get_member(setting, "direction")));
 		log_error("    Valid ones are: \"up\", \"down\", \"left\", \"right\"");
-		script_free(output->script);
-		output->script = NULL;
 		return false;
 	}
+	output->script = script_template__fly_in(output->output_indices);
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1_direction},
@@ -1644,12 +1712,15 @@ static struct script *script_template__geometry_change(int *output_slots) {
 
 static bool
 win_script_preset__geometry_change(struct win_script *output, config_setting_t *setting) {
-	output->script = script_template__geometry_change(output->output_indices);
 	double knob_duration = 0x1.999999999999ap-2;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	};
+	output->script = script_template__geometry_change(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -1659,16 +1730,20 @@ static bool win_script_preset__scale_template(struct win_script *output,
                                              bool appearing,
                                              double default_duration,
                                              double default_scale) {
-	output->script = appearing ? script_template__appear(output->output_indices)
-	                           : script_template__disappear(output->output_indices);
 	double knob_duration = default_duration;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
 	double knob_scale = default_scale;
-	config_setting_lookup_float(setting, "scale", &knob_scale);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration) ||
+	    !win_script_preset_lookup_float(setting, "scale", knob_scale, 0.05, 2.0,
+	                                    &knob_scale)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = knob_scale},
 	};
+	output->script = appearing ? script_template__appear(output->output_indices)
+	                           : script_template__disappear(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -1699,16 +1774,19 @@ static bool win_script_preset__slide_fixed(struct win_script *output,
                                            double placeholder1,
                                            double placeholder2,
                                            double placeholder3) {
-	output->script = slide_in ? script_template__slide_in(output->output_indices)
-	                         : script_template__slide_out(output->output_indices);
 	double knob_duration = 0.20;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 8, .value = placeholder2},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 12, .value = placeholder3},
 	};
+	output->script = slide_in ? script_template__slide_in(output->output_indices)
+	                         : script_template__slide_out(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -1754,10 +1832,11 @@ static bool win_script_preset__fly_fixed(struct win_script *output,
                                          double placeholder3,
                                          double placeholder4,
                                          double placeholder5) {
-	output->script = fly_in ? script_template__fly_in(output->output_indices)
-	                       : script_template__fly_out(output->output_indices);
 	double knob_duration = 0.22;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 4, .value = placeholder1},
@@ -1766,6 +1845,8 @@ static bool win_script_preset__fly_fixed(struct win_script *output,
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 16, .value = placeholder4},
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 20, .value = placeholder5},
 	};
+	output->script = fly_in ? script_template__fly_in(output->output_indices)
+	                       : script_template__fly_out(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -1806,12 +1887,15 @@ static bool win_script_preset__fly_right_out(struct win_script *output,
 static bool win_script_preset__geometry_template(struct win_script *output,
                                                  config_setting_t *setting,
                                                  double default_duration) {
-	output->script = script_template__geometry_change(output->output_indices);
 	double knob_duration = default_duration;
-	config_setting_lookup_float(setting, "duration", &knob_duration);
+	if (!win_script_preset_lookup_float(setting, "duration", knob_duration, 0.001,
+	                                    60.0, &knob_duration)) {
+		return false;
+	}
 	struct script_specialization_context spec[] = {
 	    {.offset = SCRIPT_CTX_PLACEHOLDER_BASE + 0, .value = knob_duration},
 	};
+	output->script = script_template__geometry_change(output->output_indices);
 	script_specialize(output->script, spec, ARR_SIZE(spec));
 	return true;
 }
@@ -1831,10 +1915,7 @@ static bool win_script_preset__move_smooth(struct win_script *output,
 	return win_script_preset__geometry_template(output, setting, 0.24);
 }
 
-struct {
-	const char *name;
-	bool (*func)(struct win_script *output, config_setting_t *setting);
-} win_script_presets[] = {
+const struct win_script_preset win_script_presets[] = {
     {"disappear", win_script_preset__disappear},
     {"appear", win_script_preset__appear},
     {"slide-out", win_script_preset__slide_out},
