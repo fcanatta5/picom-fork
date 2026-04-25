@@ -1,0 +1,856 @@
+diff --git a/README.md b/README.md
+index 6c464b1..736d923 100644
+--- a/README.md
++++ b/README.md
+@@ -67,36 +67,24 @@ O fork inclui animações para eventos comuns de janelas:
+ 
+ ### 🧩 Presets disponíveis
+ 
+-A configuração suporta presets prontos, incluindo:
++A configuração suporta presets clássicos e uma nova camada **Hyprland-like** implementada no parser de presets:
+ 
+ | Preset | Uso recomendado |
+ |---|---|
+-| `appear` | entrada suave com escala e fade |
+-| `disappear` | saída suave com escala e fade |
+-| `zoom-in` | abertura rápida de janelas normais/terminais |
+-| `zoom-out` | fechamento rápido de janelas normais/terminais |
+-| `pop-in` | splash screens e diálogos |
+-| `pop-out` | saída com efeito pop |
+-| `slide-up-in` | entrada vindo de baixo para cima |
+-| `slide-up-out` | saída para cima |
+-| `slide-down-in` | entrada vindo de cima |
+-| `slide-down-out` | saída para baixo |
+-| `slide-left-in` | entrada vindo da direita para esquerda |
+-| `slide-left-out` | saída para esquerda |
+-| `slide-right-in` | entrada vindo da esquerda para direita |
+-| `slide-right-out` | saída para direita |
+-| `fly-up-in` | entrada mais longa vindo de baixo |
+-| `fly-up-out` | saída mais longa para cima |
+-| `fly-down-in` | entrada mais longa vindo de cima |
+-| `fly-down-out` | saída mais longa para baixo |
+-| `fly-left-in` | entrada mais longa da direita |
+-| `fly-left-out` | saída mais longa para esquerda |
+-| `fly-right-in` | entrada mais longa da esquerda |
+-| `fly-right-out` | saída mais longa para direita |
+-| `geometry-change` | resize/move genérico |
+-| `geometry-fast` | resize/move rápido |
+-| `geometry-smooth` | resize/move mais suave |
+-| `move-smooth` | movimento suave de janelas |
++| `hypr-open` / `hypr-popin` | abertura com pop-in, fade, blur e overshoot leve, próximo ao `windows`/`popin` do Hyprland |
++| `hypr-close` / `hypr-popout` | fechamento rápido com pop-out e curva ease-in |
++| `hypr-fade-in` | transição curta para aumento de opacidade |
++| `hypr-fade-out` | transição curta para redução de opacidade |
++| `hypr-workspace-in` | entrada de workspace com slide curto, escala sutil e fade |
++| `hypr-workspace-out` | saída de workspace com slide curto, escala sutil e fade |
++| `hypr-geometry` / `hypr-move` | move/resize com curva spring visual e blend do frame salvo |
++| `appear` / `disappear` | entrada/saída suave clássica com escala e fade |
++| `zoom-in` / `zoom-out` | abertura/fechamento rápidos clássicos |
++| `pop-in` / `pop-out` | pop clássico para splash screens e diálogos |
++| `slide-*-in/out` | entrada/saída direcional curta |
++| `fly-*-in/out` | entrada/saída direcional mais longa |
++| `geometry-change`, `geometry-fast`, `geometry-smooth`, `move-smooth` | presets clássicos de resize/move |
++
+ 
+ ---
+ 
+@@ -213,25 +201,40 @@ animations = (
+ {
+   triggers = ["open", "show"];
+   suppressions = ["close", "hide"];
+-  preset = "zoom-in";
+-  duration = 0.18;
+-  scale = 0.94;
++  preset = "hypr-open";
++  duration = 0.22;
++  scale = 0.84;
+ },
+ {
+   triggers = ["close", "hide"];
+   suppressions = ["open", "show"];
+-  preset = "zoom-out";
+-  duration = 0.14;
+-  scale = 0.96;
++  preset = "hypr-close";
++  duration = 0.16;
++  scale = 0.82;
++},
++{
++  triggers = ["workspace-in"];
++  preset = "hypr-workspace-in";
++  direction = "right";
++  distance = 0.16;
++  duration = 0.26;
++},
++{
++  triggers = ["workspace-out"];
++  preset = "hypr-workspace-out";
++  direction = "left";
++  distance = 0.16;
++  duration = 0.24;
+ },
+ {
+   triggers = ["geometry"];
+-  preset = "geometry-smooth";
+-  duration = 0.22;
++  preset = "hypr-geometry";
++  duration = 0.20;
+ }
+ );
+ ```
+ 
++
+ ### Parâmetros comuns
+ 
+ | Parâmetro | Tipo | Descrição |
+@@ -240,8 +243,9 @@ animations = (
+ | `suppressions` | lista | eventos que cancelam/suprimem a animação atual |
+ | `preset` | string | preset pronto usado pela animação |
+ | `duration` | número | duração em segundos |
+-| `scale` | número | escala inicial/final usada por presets como `appear`, `zoom` e `pop` |
+-| `direction` | string | direção para presets genéricos `slide-in`, `slide-out`, `fly-in`, `fly-out` |
++| `scale` | número | escala inicial/final usada por presets como `hypr-open`, `hypr-close`, `appear`, `zoom` e `pop` |
++| `direction` | string | direção para presets `hypr-workspace-in`, `hypr-workspace-out`, `slide-in`, `slide-out`, `fly-in`, `fly-out` |
++| `distance` | número | fração do monitor usada pelo slide de workspace dos presets `hypr-workspace-*` |
+ 
+ ---
+ 
+diff --git a/data/animation_presets.conf b/data/animation_presets.conf
+index bbd8ff7..bd61f1a 100644
+--- a/data/animation_presets.conf
++++ b/data/animation_presets.conf
+@@ -213,8 +213,10 @@ geometry-change = {
+ };
+ 
+ # Additional runtime preset wrappers are implemented in
+-# src/transition/generated/script_templates.c on top of the templates above:
++# src/transition/generated/script_templates.c and src/transition/preset.c on top of the templates above:
+ #   zoom-in, zoom-out, pop-in, pop-out
+ #   slide-up-in/out, slide-down-in/out, slide-left-in/out, slide-right-in/out
+ #   fly-up-in/out, fly-down-in/out, fly-left-in/out, fly-right-in/out
+ #   geometry-fast, geometry-smooth, move-smooth
++#   hypr-open/close, hypr-popin/popout, hypr-fade-in/out,
++#   hypr-workspace-in/out, hypr-geometry/move
+diff --git a/man/picom.1.adoc b/man/picom.1.adoc
+index 48bda29..c4bb3b1 100644
+--- a/man/picom.1.adoc
++++ b/man/picom.1.adoc
+@@ -566,6 +566,54 @@ endif::[]
+ 
+ The following presets are available: ::
+ +
++_hypr-open_, _hypr-popin_, _hypr-close_, _hypr-popout_:::
+++
++Open/close windows with Hyprland-like pop-in/pop-out, synchronized fade, blur, shadow, and a slight overshoot curve.
+++
++--
++*Options*:::
++
++  _scale_:: The scale factor used at the beginning of open animations or the end of close animations.
++
++  _duration_:: Duration of the animation in seconds.
++--
+++
++_hypr-fade-in_, _hypr-fade-out_:::
+++
++Animate opacity changes with short Hyprland-like easing.
+++
++--
++*Options*:::
++
++  _duration_:: Duration of the animation in seconds.
++--
+++
++_hypr-workspace-in_, _hypr-workspace-out_:::
+++
++Animate workspace transitions with a short directional slide, subtle scale, and fade.
+++
++--
++*Options*:::
++
++  _direction_:: Direction of the workspace slide, valid values are _up_, _down_, _left_, _right_.
++
++  _distance_:: Fraction of the monitor size used for the slide distance.
++
++  _scale_:: Subtle scale factor used during the transition.
++
++  _duration_:: Duration of the animation in seconds.
++--
+++
++_hypr-geometry_, _hypr-move_:::
+++
++Animate move/resize with a spring-like curve and saved-frame blend.
+++
++--
++*Options*:::
++
++  _duration_:: Duration of the animation in seconds.
++--
+++
+ _slide-in_, _slide-out_:::
+ +
+ Show/hide the window with a sliding animation.
+diff --git a/picom.full-animated.conf b/picom.full-animated.conf
+index 54b07f8..03c6e2f 100644
+--- a/picom.full-animated.conf
++++ b/picom.full-animated.conf
+@@ -313,174 +313,86 @@ blur-deviation = 5.0;
+ #   fly-in(direction, duration), fly-out(direction, duration),
+ #   fly-up-in/out, fly-down-in/out, fly-left-in/out, fly-right-in/out,
+ #   geometry-change(duration), geometry-fast(duration),
+-#   geometry-smooth(duration), move-smooth(duration).
+-# directions para slide/fly: "up", "down", "left", "right".
++#   geometry-smooth(duration), move-smooth(duration),
++#   hypr-open(scale, duration), hypr-close(scale, duration),
++#   hypr-fade-in(duration), hypr-fade-out(duration),
++#   hypr-workspace-in/out(direction, distance, scale, duration),
++#   hypr-geometry(duration).
++# directions para slide/fly/hypr-workspace: "up", "down", "left", "right".
+ 
+ animations = (
+ {
+-  # Pop suave ao abrir/mapear janela.
++  # Abertura estilo Hyprland: pop-in com overshoot leve, fade, blur e sombra sincronizados.
+   triggers = ["open", "show"];
+   suppressions = ["close", "hide"];
+-
+-  opacity = {
+-    curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
+-    duration = 0.18;
+-    start = "window-raw-opacity-before";
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = "opacity";
+-  shadow-opacity = "opacity";
+-
+-  scale-x = {
+-    curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
+-    duration = 0.18;
+-    start = 0.94;
+-    end = 1.0;
+-  };
+-  scale-y = "scale-x";
+-  offset-x = "(1 - scale-x) / 2 * window-width";
+-  offset-y = "(1 - scale-y) / 2 * window-height";
+-  shadow-scale-x = "scale-x";
+-  shadow-scale-y = "scale-y";
+-  shadow-offset-x = "offset-x";
+-  shadow-offset-y = "offset-y";
++  preset = "hypr-open";
++  duration = 0.22;
++  scale = 0.84;
+ },
+ {
+-  # Encolhe e desvanece ao fechar/desmapear.
++  # Fechamento estilo Hyprland: pop-out rápido com curva ease-in.
+   triggers = ["close", "hide"];
+   suppressions = ["open", "show"];
+-
+-  opacity = {
+-    curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
+-    duration = 0.14;
+-    start = "window-raw-opacity-before";
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = 0.0;
+-  shadow-opacity = "opacity";
+-
+-  scale-x = {
+-    curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
+-    duration = 0.14;
+-    start = 1.0;
+-    end = 0.96;
+-  };
+-  scale-y = "scale-x";
+-  offset-x = "(1 - scale-x) / 2 * window-width";
+-  offset-y = "(1 - scale-y) / 2 * window-height";
+-  shadow-scale-x = "scale-x";
+-  shadow-scale-y = "scale-y";
+-  shadow-offset-x = "offset-x";
+-  shadow-offset-y = "offset-y";
++  preset = "hypr-close";
++  duration = 0.16;
++  scale = 0.82;
+ },
+ {
+-  # Transição quando opacidade aumenta.
++  # Transição de opacidade para regras que mudam foco/opacidade.
+   triggers = ["increase-opacity"];
+-  opacity = {
+-    curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
+-    duration = 0.12;
+-    start = "window-raw-opacity-before";
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = {
+-    curve = "linear";
+-    duration = 0.12;
+-    start = "window-blur-opacity-before";
+-    end = "window-blur-opacity";
+-  };
+-  shadow-opacity = "opacity";
++  preset = "hypr-fade-in";
++  duration = 0.13;
+ },
+ {
+-  # Transição quando opacidade diminui.
++  # Transição inversa de opacidade.
+   triggers = ["decrease-opacity"];
+-  opacity = {
+-    curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
+-    duration = 0.12;
+-    start = "window-raw-opacity-before";
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = {
+-    curve = "linear";
+-    duration = 0.12;
+-    start = "window-blur-opacity-before";
+-    end = "window-blur-opacity";
+-  };
+-  shadow-opacity = "opacity";
++  preset = "hypr-fade-out";
++  duration = 0.12;
+ },
+ {
+-  # Sai para a esquerda em troca de workspace.
++  # Workspace normal: janela sai para a esquerda com deslocamento curto e escala sutil.
+   triggers = ["workspace-out"];
+-  opacity = "window-raw-opacity-before";
+-  blur-opacity = "window-blur-opacity-before";
+-  shadow-opacity = "opacity";
+-  offset-x = {
+-    curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
+-    duration = 0.18;
+-    start = 0;
+-    end = "-window-monitor-width";
+-  };
+-  shadow-offset-x = "offset-x";
++  preset = "hypr-workspace-out";
++  direction = "left";
++  duration = 0.24;
++  distance = 0.16;
++  scale = 0.985;
+ },
+ {
+-  # Sai para a direita em troca inversa de workspace.
++  # Workspace inverso: janela sai para a direita.
+   triggers = ["workspace-out-inverse"];
+-  opacity = "window-raw-opacity-before";
+-  blur-opacity = "window-blur-opacity-before";
+-  shadow-opacity = "opacity";
+-  offset-x = {
+-    curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
+-    duration = 0.18;
+-    start = 0;
+-    end = "window-monitor-width";
+-  };
+-  shadow-offset-x = "offset-x";
++  preset = "hypr-workspace-out";
++  direction = "right";
++  duration = 0.24;
++  distance = 0.16;
++  scale = 0.985;
+ },
+ {
+-  # Entra vindo da direita.
++  # Workspace normal: janela entra vindo da direita.
+   triggers = ["workspace-in"];
+-  opacity = {
+-    curve = "linear";
+-    duration = 0.16;
+-    start = 0.0;
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = "opacity";
+-  shadow-opacity = "opacity";
+-  offset-x = {
+-    curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
+-    duration = 0.20;
+-    start = "window-monitor-width";
+-    end = 0;
+-  };
+-  shadow-offset-x = "offset-x";
++  preset = "hypr-workspace-in";
++  direction = "right";
++  duration = 0.26;
++  distance = 0.16;
++  scale = 0.985;
+ },
+ {
+-  # Entra vindo da esquerda.
++  # Workspace inverso: janela entra vindo da esquerda.
+   triggers = ["workspace-in-inverse"];
+-  opacity = {
+-    curve = "linear";
+-    duration = 0.16;
+-    start = 0.0;
+-    end = "window-raw-opacity";
+-  };
+-  blur-opacity = "opacity";
+-  shadow-opacity = "opacity";
+-  offset-x = {
+-    curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
+-    duration = 0.20;
+-    start = "-window-monitor-width";
+-    end = 0;
+-  };
+-  shadow-offset-x = "offset-x";
++  preset = "hypr-workspace-in";
++  direction = "left";
++  duration = 0.26;
++  distance = 0.16;
++  scale = 0.985;
+ },
+ {
+-  # Redimensionamento/movimento suave. Usa preset embutido novo.
++  # Move/resize estilo Hyprland: spring visual, blend do frame salvo e offset suave.
+   triggers = ["geometry"];
+-  preset = "geometry-smooth";
+-  duration = 0.22;
++  preset = "hypr-geometry";
++  duration = 0.20;
+ },
+ {
+-  # Anima mudança de cor de sombra.
++  # Anima mudança de cor de sombra sem interferir nas curvas de geometria.
+   triggers = ["color"];
+   shadow-red = {
+     curve = "linear";
+@@ -502,7 +414,6 @@ animations = (
+   };
+ }
+ );
+-
+ # ----------------------------------------------------------------------------
+ # 10. Regras modernas por janela
+ # ----------------------------------------------------------------------------
+@@ -527,13 +438,13 @@ rules = (
+   animations = (
+   {
+     triggers = ["open", "show"];
+-    preset = "appear";
++    preset = "hypr-open";
+     duration = 0.10;
+     scale = 0.98;
+   },
+   {
+     triggers = ["close", "hide"];
+-    preset = "disappear";
++    preset = "hypr-close";
+     duration = 0.08;
+     scale = 0.98;
+   }
+@@ -558,7 +469,7 @@ rules = (
+     blur-opacity = "opacity";
+     shadow-opacity = "opacity";
+     scale-y = {
+-      curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
++      curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
+       duration = 0.13;
+       start = 0.72;
+       end = 1.0;
+@@ -577,7 +488,7 @@ rules = (
+     blur-opacity = 0.0;
+     shadow-opacity = "opacity";
+     scale-y = {
+-      curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
++      curve = "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
+       duration = 0.09;
+       start = 1.0;
+       end = 0.80;
+@@ -595,13 +506,13 @@ rules = (
+   animations = (
+   {
+     triggers = ["open", "show"];
+-    preset = "appear";
++    preset = "hypr-open";
+     duration = 0.16;
+     scale = 0.90;
+   },
+   {
+     triggers = ["close", "hide"];
+-    preset = "disappear";
++    preset = "hypr-close";
+     duration = 0.12;
+     scale = 0.92;
+   }
+@@ -626,7 +537,7 @@ rules = (
+     blur-opacity = "opacity";
+     shadow-opacity = "opacity";
+     offset-x = {
+-      curve = "cubic-bezier(0.16, 1.00, 0.30, 1.00)";
++      curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
+       duration = 0.18;
+       start = "window-monitor-x + window-monitor-width - window-x";
+       end = 0;
+@@ -644,7 +555,7 @@ rules = (
+     blur-opacity = 0.0;
+     shadow-opacity = "opacity";
+     offset-x = {
+-      curve = "cubic-bezier(0.70, 0.00, 0.84, 0.00)";
++      curve = "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
+       duration = 0.14;
+       start = 0;
+       end = "window-monitor-x + window-monitor-width - window-x";
+@@ -662,13 +573,13 @@ rules = (
+   animations = (
+   {
+     triggers = ["open", "show"];
+-    preset = "pop-in";
++    preset = "hypr-popin";
+     duration = 0.18;
+     scale = 0.78;
+   },
+   {
+     triggers = ["close", "hide"];
+-    preset = "pop-out";
++    preset = "hypr-popout";
+     duration = 0.12;
+     scale = 0.84;
+   }
+@@ -719,19 +630,19 @@ rules = (
+   animations = (
+   {
+     triggers = ["open", "show"];
+-    preset = "zoom-in";
++    preset = "hypr-open";
+     duration = 0.13;
+     scale = 0.92;
+   },
+   {
+     triggers = ["close", "hide"];
+-    preset = "zoom-out";
++    preset = "hypr-close";
+     duration = 0.10;
+     scale = 0.94;
+   },
+   {
+     triggers = ["geometry"];
+-    preset = "geometry-fast";
++    preset = "hypr-geometry";
+     duration = 0.14;
+   }
+   );
+diff --git a/src/transition/preset.c b/src/transition/preset.c
+index 8b5cadd..24acb77 100644
+--- a/src/transition/preset.c
++++ b/src/transition/preset.c
+@@ -3,22 +3,317 @@
+ 
+ #include <libconfig.h>
+ #include <stdbool.h>
++#include <stdlib.h>
++#include <string.h>
++#include <strings.h>
+ 
+ #include "config.h"
+ #include "preset.h"
+ #include "script.h"
++#include "utils/misc.h"
++#include "utils/str.h"
++#include "wm/win.h"
+ 
+ extern struct {
+ 	const char *name;
+ 	bool (*func)(struct win_script *output, config_setting_t *setting);
+ } win_script_presets[];
+ 
++static bool compile_inline_win_script(struct win_script *output, const char *script_text) {
++	config_t cfg;
++	config_init(&cfg);
++	config_set_auto_convert(&cfg, true);
++
++	if (!config_read_string(&cfg, script_text)) {
++		log_error("Failed to parse built-in animation preset at line %d: %s",
++		          config_error_line(&cfg), config_error_text(&cfg));
++		config_destroy(&cfg);
++		return false;
++	}
++
++	struct script_output_info outputs[ARR_SIZE(win_script_outputs)];
++	memcpy(outputs, win_script_outputs, sizeof(win_script_outputs));
++
++	struct script_parse_config parse_config = {
++	    .context_info = win_script_context_info,
++	    .output_info = outputs,
++	};
++
++	char *err = NULL;
++	output->script = script_compile(config_root_setting(&cfg), parse_config, &err);
++	if (output->script == NULL) {
++		log_error("Failed to compile built-in animation preset: %s",
++		          err == NULL ? "see previous error message" : err);
++		free(err);
++		config_destroy(&cfg);
++		return false;
++	}
++	free(err);
++
++	for (int i = 0; i < NUM_OF_WIN_SCRIPT_OUTPUTS; i++) {
++		output->output_indices[i] = outputs[i].slot;
++	}
++
++	config_destroy(&cfg);
++	return true;
++}
++
++static double preset_float(config_setting_t *setting, const char *name, double def) {
++	double value = def;
++	config_setting_lookup_float(setting, name, &value);
++	return value;
++}
++
++static const char *preset_string(config_setting_t *setting, const char *name,
++                                 const char *def) {
++	const char *value = def;
++	config_setting_lookup_string(setting, name, &value);
++	return value;
++}
++
++static bool hypr_direction_vector(const char *direction, double *x, double *y) {
++	if (strcasecmp(direction, "left") == 0) {
++		*x = -1.0;
++		*y = 0.0;
++		return true;
++	}
++	if (strcasecmp(direction, "right") == 0) {
++		*x = 1.0;
++		*y = 0.0;
++		return true;
++	}
++	if (strcasecmp(direction, "up") == 0) {
++		*x = 0.0;
++		*y = -1.0;
++		return true;
++	}
++	if (strcasecmp(direction, "down") == 0) {
++		*x = 0.0;
++		*y = 1.0;
++		return true;
++	}
++	log_error("Invalid direction \"%s\" for Hyprland-like animation preset. "
++	          "Valid values are: left, right, up, down.",
++	          direction);
++	return false;
++}
++
++static bool win_script_preset__hypr_scale(struct win_script *output,
++                                          config_setting_t *setting,
++                                          bool opening) {
++	const double duration = preset_float(setting, "duration", opening ? 0.22 : 0.16);
++	const double scale = preset_float(setting, "scale", opening ? 0.84 : 0.82);
++	const char *curve = opening ? "cubic-bezier(0.05, 0.90, 0.10, 1.05)"
++	                            : "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
++
++	char *script = NULL;
++	if (opening) {
++		casprintf(&script,
++		          "opacity = { curve = \"%s\"; duration = %.17g; "
++		          "start = \"window-raw-opacity-before\"; end = \"window-raw-opacity\"; };"
++		          "blur-opacity = \"opacity\";"
++		          "shadow-opacity = \"opacity\";"
++		          "scale-x = { curve = \"%s\"; duration = %.17g; start = %.17g; end = 1.0; };"
++		          "scale-y = \"scale-x\";"
++		          "offset-x = \"(1 - scale-x) / 2 * window-width\";"
++		          "offset-y = \"(1 - scale-y) / 2 * window-height\";"
++		          "shadow-scale-x = \"scale-x\";"
++		          "shadow-scale-y = \"scale-y\";"
++		          "shadow-offset-x = \"offset-x\";"
++		          "shadow-offset-y = \"offset-y\";",
++		          curve, duration, curve, duration, scale);
++	} else {
++		casprintf(&script,
++		          "opacity = { curve = \"%s\"; duration = %.17g; "
++		          "start = \"window-raw-opacity-before\"; end = \"window-raw-opacity\"; };"
++		          "blur-opacity = \"opacity\";"
++		          "shadow-opacity = \"opacity\";"
++		          "scale-x = { curve = \"%s\"; duration = %.17g; start = 1.0; end = %.17g; };"
++		          "scale-y = \"scale-x\";"
++		          "offset-x = \"(1 - scale-x) / 2 * window-width\";"
++		          "offset-y = \"(1 - scale-y) / 2 * window-height\";"
++		          "shadow-scale-x = \"scale-x\";"
++		          "shadow-scale-y = \"scale-y\";"
++		          "shadow-offset-x = \"offset-x\";"
++		          "shadow-offset-y = \"offset-y\";",
++		          curve, duration, curve, duration, scale);
++	}
++
++	bool ok = compile_inline_win_script(output, script);
++	free(script);
++	return ok;
++}
++
++static bool win_script_preset__hypr_open(struct win_script *output,
++                                         config_setting_t *setting) {
++	return win_script_preset__hypr_scale(output, setting, true);
++}
++
++static bool win_script_preset__hypr_close(struct win_script *output,
++                                          config_setting_t *setting) {
++	return win_script_preset__hypr_scale(output, setting, false);
++}
++
++static bool win_script_preset__hypr_fade(struct win_script *output,
++                                         config_setting_t *setting,
++                                         bool fade_in) {
++	const double duration = preset_float(setting, "duration", 0.13);
++	const char *curve = fade_in ? "cubic-bezier(0.05, 0.90, 0.10, 1.00)"
++	                            : "cubic-bezier(0.32, 0.00, 0.67, 0.00)";
++	char *script = NULL;
++	casprintf(&script,
++	          "opacity = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-raw-opacity-before\"; end = \"window-raw-opacity\"; };"
++	          "blur-opacity = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-blur-opacity-before\"; end = \"window-blur-opacity\"; };"
++	          "shadow-opacity = \"opacity\";",
++	          curve, duration, curve, duration);
++	bool ok = compile_inline_win_script(output, script);
++	free(script);
++	return ok;
++}
++
++static bool win_script_preset__hypr_fade_in(struct win_script *output,
++                                            config_setting_t *setting) {
++	return win_script_preset__hypr_fade(output, setting, true);
++}
++
++static bool win_script_preset__hypr_fade_out(struct win_script *output,
++                                             config_setting_t *setting) {
++	return win_script_preset__hypr_fade(output, setting, false);
++}
++
++static bool win_script_preset__hypr_geometry(struct win_script *output,
++                                             config_setting_t *setting) {
++	const double duration = preset_float(setting, "duration", 0.20);
++	const char *curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
++	char *script = NULL;
++	casprintf(&script,
++	          "scale-x = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-width-before / window-width\"; end = 1.0; };"
++	          "scale-y = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-height-before / window-height\"; end = 1.0; };"
++	          "shadow-scale-x = \"scale-x\";"
++	          "shadow-scale-y = \"scale-y\";"
++	          "offset-x = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-x-before - window-x\"; end = 0.0; };"
++	          "offset-y = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-y-before - window-y\"; end = 0.0; };"
++	          "saved-image-blend = { curve = \"linear\"; duration = %.17g; start = 1.0; end = 0.0; };"
++	          "shadow-offset-x = \"offset-x\";"
++	          "shadow-offset-y = \"offset-y\";",
++	          curve, duration, curve, duration, curve, duration, curve, duration,
++	          duration);
++	bool ok = compile_inline_win_script(output, script);
++	free(script);
++	return ok;
++}
++
++static bool win_script_preset__hypr_workspace(struct win_script *output,
++                                              config_setting_t *setting,
++                                              bool entering) {
++	const double duration = preset_float(setting, "duration", 0.24);
++	const double distance = preset_float(setting, "distance", 0.16);
++	const double scale = preset_float(setting, "scale", entering ? 0.985 : 0.985);
++	const char *direction = preset_string(setting, "direction", entering ? "right" : "left");
++	double dx = 0.0, dy = 0.0;
++	if (!hypr_direction_vector(direction, &dx, &dy)) {
++		return false;
++	}
++
++	const double start_x = entering ? dx : 0.0;
++	const double start_y = entering ? dy : 0.0;
++	const double end_x = entering ? 0.0 : dx;
++	const double end_y = entering ? 0.0 : dy;
++	const double opacity_start = entering ? 0.78 : 1.0;
++	const double opacity_end = entering ? 1.0 : 0.78;
++	const double scale_start = entering ? scale : 1.0;
++	const double scale_end = entering ? 1.0 : scale;
++	const char *curve = "cubic-bezier(0.05, 0.90, 0.10, 1.05)";
++
++	char *script = NULL;
++	casprintf(&script,
++	          "offset-x = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-monitor-width * %.17g * %.17g\"; "
++	          "end = \"window-monitor-width * %.17g * %.17g\"; };"
++	          "offset-y = { curve = \"%s\"; duration = %.17g; "
++	          "start = \"window-monitor-height * %.17g * %.17g\"; "
++	          "end = \"window-monitor-height * %.17g * %.17g\"; };"
++	          "shadow-offset-x = \"offset-x\";"
++	          "shadow-offset-y = \"offset-y\";"
++	          "opacity = { curve = \"linear\"; duration = %.17g; "
++	          "start = \"window-raw-opacity-before * %.17g\"; "
++	          "end = \"window-raw-opacity * %.17g\"; };"
++	          "blur-opacity = \"opacity\";"
++	          "shadow-opacity = \"opacity\";"
++	          "scale-x = { curve = \"%s\"; duration = %.17g; start = %.17g; end = %.17g; };"
++	          "scale-y = \"scale-x\";"
++	          "shadow-scale-x = \"scale-x\";"
++	          "shadow-scale-y = \"scale-y\";"
++	          "crop-x = \"window-x\";"
++	          "crop-y = \"window-y\";"
++	          "crop-width = \"window-width\";"
++	          "crop-height = \"window-height\";",
++	          curve, duration, start_x, distance, end_x, distance, curve, duration,
++	          start_y, distance, end_y, distance, duration, opacity_start,
++	          opacity_end, curve, duration, scale_start, scale_end);
++	bool ok = compile_inline_win_script(output, script);
++	free(script);
++	return ok;
++}
++
++static bool win_script_preset__hypr_workspace_in(struct win_script *output,
++                                                 config_setting_t *setting) {
++	return win_script_preset__hypr_workspace(output, setting, true);
++}
++
++static bool win_script_preset__hypr_workspace_out(struct win_script *output,
++                                                  config_setting_t *setting) {
++	return win_script_preset__hypr_workspace(output, setting, false);
++}
++
++static bool win_script_parse_hypr_preset(const char *preset, struct win_script *output,
++                                         config_setting_t *setting) {
++	if (strcmp(preset, "hypr-open") == 0 || strcmp(preset, "hypr-popin") == 0) {
++		return win_script_preset__hypr_open(output, setting);
++	}
++	if (strcmp(preset, "hypr-close") == 0 || strcmp(preset, "hypr-popout") == 0) {
++		return win_script_preset__hypr_close(output, setting);
++	}
++	if (strcmp(preset, "hypr-fade-in") == 0) {
++		return win_script_preset__hypr_fade_in(output, setting);
++	}
++	if (strcmp(preset, "hypr-fade-out") == 0) {
++		return win_script_preset__hypr_fade_out(output, setting);
++	}
++	if (strcmp(preset, "hypr-geometry") == 0 || strcmp(preset, "hypr-move") == 0) {
++		return win_script_preset__hypr_geometry(output, setting);
++	}
++	if (strcmp(preset, "hypr-workspace-in") == 0) {
++		return win_script_preset__hypr_workspace_in(output, setting);
++	}
++	if (strcmp(preset, "hypr-workspace-out") == 0) {
++		return win_script_preset__hypr_workspace_out(output, setting);
++	}
++	return false;
++}
++
+ bool win_script_parse_preset(struct win_script *output, config_setting_t *setting) {
+ 	const char *preset = NULL;
+ 	if (!config_setting_lookup_string(setting, "preset", &preset)) {
+ 		log_error("Missing preset name in script");
+ 		return false;
+ 	}
++
++	if (strncmp(preset, "hypr-", strlen("hypr-")) == 0) {
++		log_debug("Using Hyprland-like animation preset: %s", preset);
++		if (win_script_parse_hypr_preset(preset, output, setting)) {
++			return true;
++		}
++		log_error("Unknown Hyprland-like animation preset: %s", preset);
++		return false;
++	}
++
+ 	for (unsigned i = 0; win_script_presets[i].name; i++) {
+ 		if (strcmp(preset, win_script_presets[i].name) == 0) {
+ 			log_debug("Using animation preset: %s", preset);

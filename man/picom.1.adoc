@@ -566,6 +566,54 @@ endif::[]
 
 The following presets are available: ::
 +
+_hypr-open_, _hypr-popin_, _hypr-close_, _hypr-popout_:::
++
+Open/close windows with Hyprland-like pop-in/pop-out, synchronized fade, blur, shadow, and a slight overshoot curve.
++
+--
+*Options*:::
+
+  _scale_:: The scale factor used at the beginning of open animations or the end of close animations.
+
+  _duration_:: Duration of the animation in seconds.
+--
++
+_hypr-fade-in_, _hypr-fade-out_:::
++
+Animate opacity changes with short Hyprland-like easing.
++
+--
+*Options*:::
+
+  _duration_:: Duration of the animation in seconds.
+--
++
+_hypr-workspace-in_, _hypr-workspace-out_:::
++
+Animate workspace transitions with a short directional slide, subtle scale, and fade.
++
+--
+*Options*:::
+
+  _direction_:: Direction of the workspace slide, valid values are _up_, _down_, _left_, _right_.
+
+  _distance_:: Fraction of the monitor size used for the slide distance.
+
+  _scale_:: Subtle scale factor used during the transition.
+
+  _duration_:: Duration of the animation in seconds.
+--
++
+_hypr-geometry_, _hypr-move_:::
++
+Animate move/resize with a spring-like curve and saved-frame blend.
++
+--
+*Options*:::
+
+  _duration_:: Duration of the animation in seconds.
+--
++
 _slide-in_, _slide-out_:::
 +
 Show/hide the window with a sliding animation.

@@ -67,36 +67,24 @@ O fork inclui animações para eventos comuns de janelas:
 
 ### 🧩 Presets disponíveis
 
-A configuração suporta presets prontos, incluindo:
+A configuração suporta presets clássicos e uma nova camada **Hyprland-like** implementada no parser de presets:
 
 | Preset | Uso recomendado |
 |---|---|
-| `appear` | entrada suave com escala e fade |
-| `disappear` | saída suave com escala e fade |
-| `zoom-in` | abertura rápida de janelas normais/terminais |
-| `zoom-out` | fechamento rápido de janelas normais/terminais |
-| `pop-in` | splash screens e diálogos |
-| `pop-out` | saída com efeito pop |
-| `slide-up-in` | entrada vindo de baixo para cima |
-| `slide-up-out` | saída para cima |
-| `slide-down-in` | entrada vindo de cima |
-| `slide-down-out` | saída para baixo |
-| `slide-left-in` | entrada vindo da direita para esquerda |
-| `slide-left-out` | saída para esquerda |
-| `slide-right-in` | entrada vindo da esquerda para direita |
-| `slide-right-out` | saída para direita |
-| `fly-up-in` | entrada mais longa vindo de baixo |
-| `fly-up-out` | saída mais longa para cima |
-| `fly-down-in` | entrada mais longa vindo de cima |
-| `fly-down-out` | saída mais longa para baixo |
-| `fly-left-in` | entrada mais longa da direita |
-| `fly-left-out` | saída mais longa para esquerda |
-| `fly-right-in` | entrada mais longa da esquerda |
-| `fly-right-out` | saída mais longa para direita |
-| `geometry-change` | resize/move genérico |
-| `geometry-fast` | resize/move rápido |
-| `geometry-smooth` | resize/move mais suave |
-| `move-smooth` | movimento suave de janelas |
+| `hypr-open` / `hypr-popin` | abertura com pop-in, fade, blur e overshoot leve, próximo ao `windows`/`popin` do Hyprland |
+| `hypr-close` / `hypr-popout` | fechamento rápido com pop-out e curva ease-in |
+| `hypr-fade-in` | transição curta para aumento de opacidade |
+| `hypr-fade-out` | transição curta para redução de opacidade |
+| `hypr-workspace-in` | entrada de workspace com slide curto, escala sutil e fade |
+| `hypr-workspace-out` | saída de workspace com slide curto, escala sutil e fade |
+| `hypr-geometry` / `hypr-move` | move/resize com curva spring visual e blend do frame salvo |
+| `appear` / `disappear` | entrada/saída suave clássica com escala e fade |
+| `zoom-in` / `zoom-out` | abertura/fechamento rápidos clássicos |
+| `pop-in` / `pop-out` | pop clássico para splash screens e diálogos |
+| `slide-*-in/out` | entrada/saída direcional curta |
+| `fly-*-in/out` | entrada/saída direcional mais longa |
+| `geometry-change`, `geometry-fast`, `geometry-smooth`, `move-smooth` | presets clássicos de resize/move |
+
 
 ---
 
@@ -213,24 +201,39 @@ animations = (
 {
   triggers = ["open", "show"];
   suppressions = ["close", "hide"];
-  preset = "zoom-in";
-  duration = 0.18;
-  scale = 0.94;
+  preset = "hypr-open";
+  duration = 0.22;
+  scale = 0.84;
 },
 {
   triggers = ["close", "hide"];
   suppressions = ["open", "show"];
-  preset = "zoom-out";
-  duration = 0.14;
-  scale = 0.96;
+  preset = "hypr-close";
+  duration = 0.16;
+  scale = 0.82;
+},
+{
+  triggers = ["workspace-in"];
+  preset = "hypr-workspace-in";
+  direction = "right";
+  distance = 0.16;
+  duration = 0.26;
+},
+{
+  triggers = ["workspace-out"];
+  preset = "hypr-workspace-out";
+  direction = "left";
+  distance = 0.16;
+  duration = 0.24;
 },
 {
   triggers = ["geometry"];
-  preset = "geometry-smooth";
-  duration = 0.22;
+  preset = "hypr-geometry";
+  duration = 0.20;
 }
 );
 ```
+
 
 ### Parâmetros comuns
 
@@ -240,8 +243,9 @@ animations = (
 | `suppressions` | lista | eventos que cancelam/suprimem a animação atual |
 | `preset` | string | preset pronto usado pela animação |
 | `duration` | número | duração em segundos |
-| `scale` | número | escala inicial/final usada por presets como `appear`, `zoom` e `pop` |
-| `direction` | string | direção para presets genéricos `slide-in`, `slide-out`, `fly-in`, `fly-out` |
+| `scale` | número | escala inicial/final usada por presets como `hypr-open`, `hypr-close`, `appear`, `zoom` e `pop` |
+| `direction` | string | direção para presets `hypr-workspace-in`, `hypr-workspace-out`, `slide-in`, `slide-out`, `fly-in`, `fly-out` |
+| `distance` | número | fração do monitor usada pelo slide de workspace dos presets `hypr-workspace-*` |
 
 ---
 
